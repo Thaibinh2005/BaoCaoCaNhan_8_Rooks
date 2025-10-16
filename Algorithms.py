@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import scrolledtext
 from PIL import Image, ImageTk
 from collections import deque
-import heapq, random, math
+import heapq, random, math, time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -554,61 +554,63 @@ class EightCarQueen:
             self.pause_btn.config(text="Pause",bg="#fff0b3")
             self.step_animation()
 
-    #So sánh Uninformed
+       # ===== Benchmark đo thời gian =====
+    def measure_algorithms(self, algo_list):
+        results=[]
+        for name, func in algo_list:
+            start=time.perf_counter()
+            sol,path=func()
+            end=time.perf_counter()
+            elapsed=end-start
+            results.append((name,elapsed,len(path)))
+        return results
+
+    # ====== So sánh nhóm thuật toán ======
     def compare_uninformed(self):
-        algos = ["BFS", "DFS", "UCS", "DLS", "IDS"]
-        times = [0.5, 0.2, 0.8, 1.4]
-        nodes = [10, 12, 8, 15]
-        self._draw_comparison_chart(algos, times, nodes, "So sánh thuật toán – Uninformed Search", "#8ecae6")
+        algos=[("BFS",self.bfs),("DFS",self.dfs),("UCS",self.ucs),("DLS",self.dls),("IDS",self.ids)]
+        data=self.measure_algorithms(algos)
+        self._draw_comparison_chart([x[0] for x in data],[x[1] for x in data],[x[2] for x in data],"Uninformed Search","#8ecae6")
 
-    #So sánh Informed 
     def compare_informed(self):
-        algos = ["Greedy", "A*"]
-        times = [0.17, 1.36]
-        nodes = [3, 3]
-        self._draw_comparison_chart(algos, times, nodes, "So sánh thuật toán – Informed Search", "#b39ddb")
+        algos=[("Greedy",self.greedy),("A*",self.astar)]
+        data=self.measure_algorithms(algos)
+        self._draw_comparison_chart([x[0] for x in data],[x[1] for x in data],[x[2] for x in data],"Informed Search","#b39ddb")
 
-    # So sánh Local Search
     def compare_local(self):
-        algos = ["Hill", "Beam", "Annealing", "Genetic"]
-        times = [0.6, 0.8, 1.2, 2.0]
-        nodes = [20, 15, 18, 25]
-        self._draw_comparison_chart(algos, times, nodes, "So sánh thuật toán – Local Search", "#ffb703")
+        algos=[("Hill",self.hill),("Beam",self.beam),("Annealing",self.annealing),("Genetic",self.genetic)]
+        data=self.measure_algorithms(algos)
+        self._draw_comparison_chart([x[0] for x in data],[x[1] for x in data],[x[2] for x in data],"Local Search","#ffb703")
 
-    # So sánh CSP / Complex Search
     def compare_csp(self):
-        algos = ["Backtracking", "Forward-Check", "AC-3"]
-        times = [0.7, 0.9, 1.1]
-        nodes = [12, 10, 8]
-        self._draw_comparison_chart(algos, times, nodes, "So sánh thuật toán – CSP / Complex", "#90be6d")
+        algos=[("Backtracking",self.backtracking),("Forward",self.forward_checking),("AC-3",self.ac3_algorithm)]
+        data=self.measure_algorithms(algos)
+        self._draw_comparison_chart([x[0] for x in data],[x[1] for x in data],[x[2] for x in data],"CSP Search","#90be6d")
 
-    # Hàm dùng chung để vẽ biểu đồ
+    # ===== Biểu đồ Matplotlib =====
     def _draw_comparison_chart(self, algos, times, nodes, title, color):
-        fig, axes = plt.subplots(2, 1, figsize=(6, 6))
-        fig.suptitle(title, fontsize=14, color="#4B0082")
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        fig.suptitle(title, fontsize=15, color="#4B0082", fontweight="bold")
 
         # Biểu đồ thời gian
-        axes[0].bar(algos, times, color=color)
-        for i, v in enumerate(times):
-            axes[0].text(i, v + 0.05, f"{v}", ha="center", fontsize=9)
-        axes[0].set_ylabel("Giây")
-        axes[0].set_title("Thời gian thực thi")
+        axes[0].bar(algos, times, color=color, edgecolor="black")
+        axes[0].set_title("Thời gian (s)")
+        for i,v in enumerate(times):
+            axes[0].text(i,v+0.01,f"{v:.3f}",ha="center",fontsize=9)
+        axes[0].grid(axis="y",linestyle="--",alpha=0.6)
 
         # Biểu đồ số node
-        axes[1].bar(algos, nodes, color=color)
-        for i, v in enumerate(nodes):
-            axes[1].text(i, v + 0.05, f"{v}", ha="center", fontsize=9)
-        axes[1].set_ylabel("Số node")
+        axes[1].bar(algos, nodes, color=color, edgecolor="black")
         axes[1].set_title("Số node mở rộng")
+        for i,v in enumerate(nodes):
+            axes[1].text(i,v+0.2,str(v),ha="center",fontsize=9)
+        axes[1].grid(axis="y",linestyle="--",alpha=0.6)
 
         plt.tight_layout()
-
-        # Nhúng vào cửa sổ Tkinter
-        win = tk.Toplevel(self.root)
-        win.title(title)
-        canvas = FigureCanvasTkAgg(fig, master=win)
+        win=tk.Toplevel(self.root)
+        win.title(f"Biểu đồ so sánh - {title}")
+        canvas=FigureCanvasTkAgg(fig,master=win)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True)
+        canvas.get_tk_widget().pack(fill="both",expand=True)
 
 if __name__=="__main__":
     root=tk.Tk()
