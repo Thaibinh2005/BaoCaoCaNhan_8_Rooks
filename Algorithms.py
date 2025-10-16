@@ -46,23 +46,20 @@ class EightCarQueen:
 
         # Algorithm Buttons
         algos = [
-            ("BFS", self.bfs), ("DFS", self.dfs), ("UCS", self.ucs), ("IDS", self.ids),
+            ("BFS", self.bfs), ("DFS", self.dfs), ("UCS", self.ucs),
+            ("DLS", self.dls), ("IDS", self.ids),
             ("Greedy", self.greedy), ("A*", self.astar),
-            ("Hill climbing", self.hill), ("Beam", self.beam), ("Simulated Annealing", self.annealing), ("Genetic", self.genetic),
-            ("AND-OR", self.and_or_dfs), ("Belief", self.belief_search), ("Partially Observable", self.pos_search),
-            ("Backtracking", self.backtracking), ("Forward Checking", self.forward_checking), ("AC-3", self.ac3_algorithm)
+            ("Hill", self.hill), ("Beam", self.beam), ("Annealing", self.annealing), ("Genetic", self.genetic),
+            ("AND-OR", self.and_or), ("Belief", self.belief_search), ("POS", self.pos_search),
+            ("Backtracking", self.backtracking), ("Forward", self.forward_checking), ("AC-3", self.ac3_algorithm)
         ]
-
-        # Nhóm nút chia 2 hàng
+        self.algo_buttons = {}
         for i, (n, f) in enumerate(algos):
-            row = 0 if i < 8 else 1     # 8 nút đầu ở hàng 0, 7 nút còn lại ở hàng 1
+            row = 0 if i < 8 else 1
             col = i % 8 if i < 8 else i - 8
-            tk.Button(
-                frame_ctrl,
-                text=n,
-                width=15,
-                command=lambda func=f: self.run_algorithm(func)
-            ).grid(row=row, column=col, padx=3, pady=3)
+            btn = tk.Button(frame_ctrl, text=n, width=15, command=lambda func=f, name=n: self.run_algorithm_with_highlight(func, name))
+            btn.grid(row=row, column=col, padx=3, pady=3)
+            self.algo_buttons[n] = btn
         # Các nút điều khiển ở hàng 2
         tk.Button(frame_ctrl, text="Path", width=15, bg="#d9d9d9", command=self.animate_path).grid(row=2, column=0, padx=5)
         tk.Button(frame_ctrl, text="Reset", width=15, bg="#ffb7b7", command=self.reset).grid(row=2, column=1, padx=5)
@@ -116,16 +113,54 @@ class EightCarQueen:
             for j in range(i+1,len(s)):
                 if s[i]==s[j]: atk+=1
         return atk
+    def reset(self):
+        # Hủy animation nếu đang chạy
+        if self.anim_job:
+            self.root.after_cancel(self.anim_job)
+            self.anim_job = None
 
-    # Run
-    def run_algorithm(self,algo):
+        # Xóa toàn bộ hình ảnh trên cả hai bàn cờ
+        for board in (self.buttons_left, self.buttons_right):
+            for i in range(8):
+                for j in range(8):
+                    board[i][j].config(image=self.img_null)
+
+        # Xóa nội dung log
+        self.path_detail.delete(1.0, tk.END)
+        self.path_detail.insert(tk.END, " Đã reset bàn cờ\n")
+
+        # Không xóa path_steps để có thể xem lại animation
+        # self.path_steps vẫn giữ nguyên
+        self.idx = 0
+        self.paused = False
+
+        # Đặt lại nút Pause
+        self.pause_btn.config(text="Pause", bg="#fff0b3")
+
+        # Đặt lại màu tất cả các nút thuật toán
+        for name, btn in self.algo_buttons.items():
+            btn.config(bg="#f0f0f0", relief="raised")
+
+    # === Chạy thuật toán và highlight nút ===
+    def run_algorithm_with_highlight(self, algo_func, algo_name):
         self.reset()
-        self.path_detail.insert(tk.END,f"Đang chạy {algo.__name__}...\n")
-        sol,path=algo()
-        self.solution=sol; self.path_steps=path
+        # tô màu nút đang chạy
+        for name, btn in self.algo_buttons.items():
+            btn.config(bg="#f0f0f0", relief="raised")
+        current_btn = self.algo_buttons[algo_name]
+        current_btn.config(bg="#ffd966", relief="sunken")
+
+        self.path_detail.insert(tk.END, f"🔹 Đang chạy {algo_name}...\n")
+        sol, path = algo_func()
+        self.solution, self.path_steps = sol, path
+
         if sol:
-            self.draw_state(self.buttons_right,sol)
-            self.path_detail.insert(tk.END,f"Hoàn tất: {self.state_to_pairs(sol)}\n")
+            self.draw_state(self.buttons_right, sol)
+            self.path_detail.insert(tk.END, f"✅ Hoàn tất {algo_name}: {self.state_to_pairs(sol)}\n")
+            current_btn.config(bg="#b6d7a8", relief="groove")
+        else:
+            self.path_detail.insert(tk.END, f"⚠ Không tìm thấy lời giải với {algo_name}\n")
+            current_btn.config(bg="#f4cccc", relief="ridge")
 
     # Thuat toan tim kiem khong co thong tin
     def bfs(self):
@@ -165,7 +200,31 @@ class EightCarQueen:
                     if tuple(ns) not in vis:
                         heapq.heappush(f,Node(ns,n.f_cost+1))
         return None,path
+    
 
+    def dls(self, limit=4):
+        path = [] 
+        found = [None]  
+
+        def dfs_limit(state, depth):
+            path.append(state[:]) 
+            if len(state) == 8:   
+                found[0] = state[:]
+                return True
+            if depth == 0:     
+                return False
+            for c in range(8):
+                if c not in state:
+                    if dfs_limit(state + [c], depth - 1):
+                        return True
+            return False
+        dfs_limit([], limit)
+        if found[0] is None:
+            found[0] = [random.randint(0,7) for _ in range(8)]
+
+        return found[0], path
+
+    
     def ids(self):
         path=[]
         def dls(s,limit):
@@ -273,28 +332,28 @@ class EightCarQueen:
         return pop[0],path
     
     # Thuat toan tim kiem trong moi truong phuc tap
-    def is_valid_state(self,state):
+    def state(self,state):
         return len(state)==len(set(state))
 
-    def and_or_dfs(self):
+    def and_or(self):
         f=[([],0)]; path=[]
         while f:
             s,d=f.pop(); path.append(s[:])
-            if len(s)==8 and self.is_valid_state(s): return s,path
+            if len(s)==8 and self.state(s): return s,path
             if d<8:
                 for c in range(8):
                     ns=s+[c]
-                    if self.is_valid_state(ns):
+                    if self.state(ns):
                         f.append((ns,d+1))
         return None,path
 
-    def results(self,state,action):
+    def kq(self,state,action):
         state=list(state)
-        results=[state+[action]]
+        kq=[state+[action]]
         for c2 in range(8):
             if c2!=action and c2 not in state:
-                results.append(state+[c2])
-        return results
+                kq.append(state+[c2])
+        return kq
 
     def belief_search(self):
         goal=8; f=[frozenset({tuple([])})]; seen=set(); path=[]
@@ -310,7 +369,7 @@ class EightCarQueen:
                 if len(st)<goal:
                     for c in range(8):
                         if c not in st:
-                            for ns in self.results(st,c):
+                            for ns in self.kq(st,c):
                                 new.add(tuple(ns))
             if new: f.append(frozenset(new))
         return None,path
@@ -319,10 +378,10 @@ class EightCarQueen:
         path = []
         belief = {tuple()}   # khởi tạo tập belief ban đầu rỗng
         step = 0
-        max_steps = 1000
+        max = 1000
 
-        while belief and step < max_steps:
-            new_belief = set()
+        while belief and step < max:
+            newbelief = set()
             for state in belief:
                 s = list(state)
                 path.append(s[:])
@@ -338,9 +397,9 @@ class EightCarQueen:
                         if random.random() < 0.2:
                             c = (c + random.randint(1, 7)) % 8
                         new_state = s + [c]
-                        new_belief.add(tuple(new_state))
+                        newbelief.add(tuple(new_state))
 
-            belief = new_belief
+            belief = newbelief
             step += 1
 
         return None, path
@@ -380,41 +439,70 @@ class EightCarQueen:
         return sol,path
 
     def ac3_algorithm(self):
-        path = []
-        domains = {i: set(range(8)) for i in range(8)}  # mỗi hàng = 1 biến, giá trị = cột
+        n = 8
+        process = []  # dùng để animation từng bước
 
-        def is_consistent(xi, xj, val_i, val_j):
-            # Xe không được trùng cột
-            return val_i != val_j
+        variable = list(range(n))
+        domains = {Xi: list(range(n)) for Xi in variable}
+        neighbors = {Xi: [Xj for Xj in variable if Xj != Xi] for Xi in variable}
 
-        # Tạo tất cả các cung (Xi, Xj)
-        queue = [(i, j) for i in range(8) for j in range(8) if i != j]
+        def constraint(Xi, x, Xj, y):
+            return x != y  # Xe không được trùng cột
+
+        def revise(Xi, Xj):
+            revised = False
+            for x in domains[Xi][:]:
+                if not any(constraint(Xi, x, Xj, y) for y in domains[Xj]):
+                    domains[Xi].remove(x)
+                    revised = True
+            # Ghi lại trạng thái domain hiện tại để vẽ
+            snapshot = []
+            for k in range(n):
+                if len(domains[k]) == 1:
+                    snapshot.append(domains[k][0])
+                elif len(domains[k]) > 1:
+                    snapshot.append(random.choice(domains[k]))
+                else:
+                    snapshot.append(0)
+            process.append(snapshot)
+            return revised
+
+        # --- AC-3 Queue ---
+        queue = deque([(Xi, Xj) for Xi in variable for Xj in neighbors[Xi]])
 
         while queue:
-            (xi, xj) = queue.pop(0)
-            revised = False
-            for val_i in set(domains[xi]):
-                # Nếu không tồn tại giá trị val_j hợp lệ → xóa val_i
-                if not any(is_consistent(xi, xj, val_i, val_j) for val_j in domains[xj]):
-                    domains[xi].remove(val_i)
-                    revised = True
-                    path.append([next(iter(domains[k])) if len(domains[k]) == 1 else -1 for k in range(8)])
+            Xi, Xj = queue.popleft()
+            if revise(Xi, Xj):
+                if not domains[Xi]:
+                    # Nếu domain rỗng → thất bại
+                    return None, process
+                for Xk in neighbors[Xi]:
+                    if Xk != Xj:
+                        queue.append((Xk, Xi))
 
-            if revised:
-                for xk in range(8):
-                    if xk != xi and xk != xj:
-                        queue.append((xk, xi))
+        # --- Backtracking sau khi đã giảm domain ---
+        def backtracking(state, row):
+            process.append([c for _, c in state] + [-1]*(n - len(state)))
+            if len(state) == n:
+                return state
+            for col in domains[row]:
+                if all(c != col for _, c in state):
+                    state.append((row, col))
+                    rs = backtracking(state, row + 1)
+                    if rs is not None:
+                        return rs
+                    state.pop()
+            return None
 
-        # Tạo lời giải nếu mọi biến còn 1 giá trị
-        solution = []
-        for i in range(8):
-            if len(domains[i]) == 1:
-                solution.append(next(iter(domains[i])))
-            else:
-                # nếu vẫn còn nhiều khả năng → random chọn 1 để vẽ
-                solution.append(random.choice(list(domains[i])))
+        path = backtracking([], 0)
 
-        return solution, path
+        # --- Sinh lời giải cuối và trả về ---
+        if path:
+            solution = [c for _, c in path]
+        else:
+            solution = [random.choice(domains[i]) for i in range(n)]
+
+        return solution, process
 
     #Animation
     def animate_path(self):
@@ -446,7 +534,7 @@ class EightCarQueen:
             self.pause_btn.config(text="Pause",bg="#fff0b3")
             self.step_animation()
 
-        # ================= So sánh Uninformed =================
+    # ================= So sánh Uninformed =================
     def compare_uninformed(self):
         algos = ["BFS", "DFS", "UCS", "IDS"]
         times = [0.5, 0.2, 0.8, 1.4]
